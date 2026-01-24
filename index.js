@@ -17,13 +17,15 @@
 
     /************** RPC 配置 **************/
     const RPC_ENDPOINT = "https://localhost:6801/jsonrpc";
-    const ARIA2_TOKEN = "你的真实密钥";
+    const ARIA2_TOKEN  = "***";
     /************************************/
 
     /* ---------- 持久化配置 ---------- */
     const DEFAULT_BASE_DIR = "kemono";
     const BASE_DIR = GM_getValue("baseDir", DEFAULT_BASE_DIR);
     const AUTO_FAVORITE = GM_getValue("autoFavorite", false);
+    const NAME_MODE = GM_getValue("nameMode", "original");
+
 
     /* ---------- aria2 ---------- */
     function addToAria2(filePath, url) {
@@ -49,7 +51,7 @@
                     params: [
                         `token:${ARIA2_TOKEN}`,
                         [url],
-                        {dir, out}
+                        { dir, out }
                     ]
                 }),
                 onload: r => {
@@ -76,6 +78,7 @@
         const num = String(index + 1).padStart(3, "0");
         return num + ext;
     }
+
 
     function tryFavoritePost() {
         const btn =
@@ -107,18 +110,19 @@
     function getRealFileName(url) {
         const decoded = decodeURIComponent(url);
 
-        // 优先使用 _f= 后的真实文件名
-        const f = decoded.match(/[?&]_f=([^&]+)/);
+        // ✅ kemono 正确参数：?f=真实文件名
+        const f = decoded.match(/[?&]f=([^&]+)/);
         if (f) return f[1];
 
-        // 兜底：取最后的路径名
+        // 兜底：hash 名
         return decoded.split("/").pop().replace(/\?.*$/, "");
     }
 
 
+
     function getPlatform() {
         if (location.pathname.includes("/patreon/")) return "patreon";
-        if (location.pathname.includes("/fanbox/")) return "fanbox";
+        if (location.pathname.includes("/fanbox/"))  return "fanbox";
         if (location.pathname.includes("/fantia/")) return "fantia";
         return "unknown";
     }
@@ -126,7 +130,7 @@
     function getIds() {
         const userId = location.pathname.match(/\/user\/(\d+)/)?.[1] || "unknown";
         const postId = location.pathname.match(/\/post\/(\d+)/)?.[1] || "unknown";
-        return {userId, postId};
+        return { userId, postId };
     }
 
     function getPostInfo() {
@@ -149,23 +153,7 @@
     function getAllDownloadUrls() {
         const urls = new Set();
 
-        /* ========== 1️⃣ 帖子图片区（img src="?f=xxx"） ========== */
-        document.querySelectorAll(".post__files img").forEach(img => {
-            const src = img.getAttribute("src");
-            if (src && src.includes("/data/")) {
-                urls.add(src.startsWith("http") ? src : location.origin + src);
-            }
-        });
-
-        /* ========== 2️⃣ 可下载附件（zip / rar / 7z 等） ========== */
-        document.querySelectorAll("a.post__attachment-link").forEach(a => {
-            const href = a.getAttribute("href");
-            if (href && href.includes("/data/")) {
-                urls.add(href.startsWith("http") ? href : location.origin + href);
-            }
-        });
-
-        /* ========== 3️⃣ fileThumb（老结构 / 缩略图 a[href]） ========== */
+        /* ========== 1️⃣ 图片 / 漫画（必须从 a.fileThumb[href] 取） ========== */
         document.querySelectorAll("a.fileThumb[href]").forEach(a => {
             const href = a.getAttribute("href");
             if (href && href.includes("/data/")) {
@@ -173,9 +161,17 @@
             }
         });
 
-        /* ========== 4️⃣ 视频 / 音频（video / audio src） ========== */
-        document.querySelectorAll("video source, audio source").forEach(srcEl => {
-            const src = srcEl.getAttribute("src");
+        /* ========== 2️⃣ 附件（zip / rar / psd / etc） ========== */
+        document.querySelectorAll("a.post__attachment-link[href]").forEach(a => {
+            const href = a.getAttribute("href");
+            if (href && href.includes("/data/")) {
+                urls.add(href.startsWith("http") ? href : location.origin + href);
+            }
+        });
+
+        /* ========== 3️⃣ video / audio ========== */
+        document.querySelectorAll("video source, audio source").forEach(el => {
+            const src = el.getAttribute("src");
             if (src && src.includes("/data/")) {
                 urls.add(src.startsWith("http") ? src : location.origin + src);
             }
@@ -183,6 +179,7 @@
 
         return [...urls];
     }
+
 
 
     /* ---------- UI ---------- */
@@ -213,6 +210,23 @@
 
         favToggle.appendChild(favCheckbox);
         favToggle.append(" 下载完成后自动 Favorite");
+
+        /* ---------- 命名方式选择 ---------- */
+        const nameModeWrap = document.createElement("div");
+        nameModeWrap.style.cssText = "margin-top:6px";
+
+        const nameSelect = document.createElement("select");
+        nameSelect.innerHTML = `
+        <option value="original">使用原文件名称</option>
+        <option value="index">自动按序号重命名（001.jpg）</option>
+    `;
+        nameSelect.value = NAME_MODE;
+        nameSelect.onchange = () => {
+            GM_setValue("nameMode", nameSelect.value);
+        };
+
+        nameModeWrap.append("文件命名：");
+        nameModeWrap.appendChild(nameSelect);
 
         /**
          * 选择要下载的文件（UI 显示原始文件名）
@@ -247,24 +261,33 @@
 
                 const list = document.createElement("div");
 
+                const mode = GM_getValue("nameMode", "original");
+
                 urls.forEach((url, i) => {
-                    // 👉 UI 显示用：真实文件名
                     const realName = getRealFileName(url);
+                    const indexedName = buildIndexedName(i, realName);
+
+                    const display =
+                        mode === "index"
+                            ? `<b>${indexedName}</b> <span style="opacity:.6">← ${realName}</span>`
+                            : realName;
 
                     const row = document.createElement("label");
                     row.style.cssText = `
-                display: block;
-                margin: 4px 0;
-                cursor: pointer;
-                word-break: break-all;
-            `;
+        display: block;
+        margin: 4px 0;
+        cursor: pointer;
+        word-break: break-all;
+    `;
 
                     row.innerHTML = `
-                <input type="checkbox" data-i="${i}" checked>
-                <span style="opacity:.85">${realName}</span>
-            `;
+        <input type="checkbox" data-i="${i}" checked>
+        <span>${display}</span>
+    `;
+
                     list.appendChild(row);
                 });
+
 
                 const ok = document.createElement("button");
                 ok.textContent = "开始下载";
@@ -296,6 +319,7 @@
             });
         }
 
+
         /**
          * 自定义下载路径
          * @type {HTMLButtonElement}
@@ -309,15 +333,15 @@
 
         btn.onclick = async () => {
             const platform = getPlatform();
-            const {userId, postId} = getIds();
-            const {creator, title} = getPostInfo();
+            const { userId, postId } = getIds();
+            const { creator, title } = getPostInfo();
             /**
              * 下载按钮
              */
             let urls = getAllDownloadUrls();
 
             if (!urls.length) {
-                alert("已收藏未找到可下载文件");
+                alert("未找到可下载文件");
                 return;
             }
 
@@ -332,9 +356,13 @@
 
             for (let i = 0; i < urls.length; i++) {
                 const url = urls[i];
+                const mode = GM_getValue("nameMode", "original");
 
                 const realName = getRealFileName(url);
-                const indexedName = buildIndexedName(i, realName);
+                const fileName =
+                    mode === "index"
+                        ? buildIndexedName(i, realName)
+                        : realName;
 
                 const sep = BASE_DIR.match(/^[A-Za-z]:\\/) ? "\\" : "/";
 
@@ -342,7 +370,7 @@
                     BASE_DIR +
                     sep + `(${platform}) ${creator}_${userId}` +
                     sep + `${title}_${postId}` +
-                    sep + indexedName;
+                    sep + fileName;
 
                 try {
                     await addToAria2(path, url);
@@ -354,7 +382,6 @@
 
 
             if (GM_getValue("autoFavorite", false) && ok > 0 && fail === 0) {
-
                 tryFavoritePost();
             }
 
@@ -375,6 +402,7 @@
         box.appendChild(btn);
         box.appendChild(cfg);
         box.appendChild(favToggle);
+        box.appendChild(nameModeWrap);
         document.body.appendChild(box);
     }
 
