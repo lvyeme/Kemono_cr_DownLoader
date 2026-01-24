@@ -118,8 +118,6 @@
         return decoded.split("/").pop().replace(/\?.*$/, "");
     }
 
-
-
     function getPlatform() {
         if (location.pathname.includes("/patreon/")) return "patreon";
         if (location.pathname.includes("/fanbox/"))  return "fanbox";
@@ -149,6 +147,21 @@
             title: sanitize(title)
         };
     }
+
+    /**
+     * 获取帖子年份函数
+     * @returns {string}
+     */
+    function getPostYear() {
+        const timeEl = document.querySelector(".post__published time.timestamp");
+        if (!timeEl) return "unknown_year";
+
+        const dt = timeEl.getAttribute("datetime"); // 2021-01-28T14:51:08
+        if (!dt) return "unknown_year";
+
+        return dt.slice(0, 4); // 取年份
+    }
+
 
     function getAllDownloadUrls() {
         const urls = new Set();
@@ -335,6 +348,7 @@
             const platform = getPlatform();
             const { userId, postId } = getIds();
             const { creator, title } = getPostInfo();
+            const year = getPostYear();
             /**
              * 下载按钮
              */
@@ -369,6 +383,7 @@
                 const path =
                     BASE_DIR +
                     sep + `(${platform}) ${creator}_${userId}` +
+                    sep + year +
                     sep + `${title}_${postId}` +
                     sep + fileName;
 
