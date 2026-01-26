@@ -25,6 +25,10 @@
     const BASE_DIR = GM_getValue("baseDir", DEFAULT_BASE_DIR);
     const AUTO_FAVORITE = GM_getValue("autoFavorite", false);
     const NAME_MODE = GM_getValue("nameMode", "original");
+    const USE_YEAR_FOLDER = GM_getValue("useYearFolder", false);
+    const USE_ORIGINAL_NAME = GM_getValue("useOriginalName", false);
+    const USE_PLATFORM = GM_getValue("usePlatform", false);
+    const USE_AUTHOR_ID = GM_getValue("useAuthorId", false);
 
 
     /* ---------- aria2 ---------- */
@@ -349,6 +353,13 @@
             const { userId, postId } = getIds();
             const { creator, title } = getPostInfo();
             const year = getPostYear();
+
+            const useYear = GM_getValue("useYearFolder", false);
+            const usePlatform = GM_getValue("usePlatform", false);
+            const useAuthorId = GM_getValue("useAuthorId", false);
+
+            const mode = GM_getValue("nameMode", "original");
+
             /**
              * 下载按钮
              */
@@ -378,12 +389,17 @@
                         ? buildIndexedName(i, realName)
                         : realName;
 
+
                 const sep = BASE_DIR.match(/^[A-Za-z]:\\/) ? "\\" : "/";
+
+                let authorFolder = creator;
+                if (useAuthorId) authorFolder += "_" + userId;
+                if (usePlatform) authorFolder = `(${platform}) ` + authorFolder;
 
                 const path =
                     BASE_DIR +
-                    sep + `(${platform}) ${creator}_${userId}` +
-                    sep + year +
+                    sep + authorFolder +
+                    (useYear ? sep + year : "") +
                     sep + `${title}_${postId}` +
                     sep + fileName;
 
@@ -413,9 +429,35 @@
             }
         };
 
+        // ===== 统一设置栏 =====
+        const settingsBox = document.createElement("div");
+        settingsBox.style.cssText = "margin-top:8px;border-top:1px solid #555;padding-top:6px;font-size:12px";
+
+        settingsBox.innerHTML = `
+        <label><input type="checkbox" id="optYear"> 按年份存放</label><br>
+        <label><input type="checkbox" id="optName"> 使用原文件名</label><br>
+        <label><input type="checkbox" id="optPlatform"> 包含平台(fanbox/patreon)</label><br>
+        <label><input type="checkbox" id="optAuthor"> 包含作者ID</label>
+        `;
+
+        const optYear = settingsBox.querySelector("#optYear");
+        const optName = settingsBox.querySelector("#optName");
+        const optPlatform = settingsBox.querySelector("#optPlatform");
+        const optAuthor = settingsBox.querySelector("#optAuthor");
+
+        optYear.checked = USE_YEAR_FOLDER;
+        optName.checked = USE_ORIGINAL_NAME;
+        optPlatform.checked = USE_PLATFORM;
+        optAuthor.checked = USE_AUTHOR_ID;
+
+        optYear.onchange = () => GM_setValue("useYearFolder", optYear.checked);
+        optName.onchange = () => GM_setValue("useOriginalName", optName.checked);
+        optPlatform.onchange = () => GM_setValue("usePlatform", optPlatform.checked);
+        optAuthor.onchange = () => GM_setValue("useAuthorId", optAuthor.checked);
 
         box.appendChild(btn);
         box.appendChild(cfg);
+        box.appendChild(settingsBox);
         box.appendChild(favToggle);
         box.appendChild(nameModeWrap);
         document.body.appendChild(box);
