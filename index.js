@@ -275,7 +275,13 @@
             border-radius: 8px;
             font-size: 13px;
         `;
-                box.innerHTML = `<b>选择要下载的文件（显示原名）</b><hr style="opacity:.3">`;
+                box.innerHTML = `
+                <b>选择要下载的文件（显示原名）</b>
+                <label style="float:right;cursor:pointer;font-size:12px;">
+                  <input type="checkbox" id="selectAll" checked> 全选
+                </label>
+                <hr style="opacity:.3;clear:both">
+                `;
 
                 const list = document.createElement("div");
 
@@ -292,20 +298,34 @@
 
                     const row = document.createElement("label");
                     row.style.cssText = `
-        display: block;
-        margin: 4px 0;
-        cursor: pointer;
-        word-break: break-all;
-    `;
+                    display: block;
+                    margin: 4px 0;
+                    cursor: pointer;
+                    word-break: break-all;
+                `;
 
                     row.innerHTML = `
-        <input type="checkbox" data-i="${i}" checked>
-        <span>${display}</span>
-    `;
+                    <input type="checkbox" data-i="${i}" checked>
+                    <span>${display}</span>
+                `;
 
                     list.appendChild(row);
                 });
 
+                const selectAll = box.querySelector("#selectAll");
+
+                // 全选 → 控制所有文件勾选
+                selectAll.onchange = () => {
+                    const checks = list.querySelectorAll("input[type=checkbox]");
+                    checks.forEach(cb => cb.checked = selectAll.checked);
+                };
+
+                // 单个取消 → 自动取消全选
+                list.addEventListener("change", () => {
+                    const checks = list.querySelectorAll("input[type=checkbox]");
+                    const allChecked = [...checks].every(cb => cb.checked);
+                    selectAll.checked = allChecked;
+                });
 
                 const ok = document.createElement("button");
                 ok.textContent = "开始下载";
