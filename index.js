@@ -29,7 +29,8 @@
     const USE_ORIGINAL_NAME = GM_getValue("useOriginalName", false);
     const USE_PLATFORM = GM_getValue("usePlatform", false);
     const USE_AUTHOR_ID = GM_getValue("useAuthorId", false);
-
+    const USE_POST_ID = GM_getValue("usePostId", false);
+    const USE_POST_FOLDER = GM_getValue("usePostFolder", false);
 
     /* ---------- aria2 ---------- */
     function addToAria2(filePath, url) {
@@ -336,6 +337,46 @@
             });
         }
 
+        /**
+         * 路径预览
+         */
+        function updatePathPreview() {
+            const useYear = GM_getValue("useYearFolder", false);
+            const usePlatform = GM_getValue("usePlatform", false);
+            const useAuthorId = GM_getValue("useAuthorId", false);
+            const usePostFolder = GM_getValue("usePostFolder", false);
+            const usePostId = GM_getValue("usePostId", false);
+            const mode = GM_getValue("nameMode", "original");
+
+            const { userId, postId } = getIds();
+            const { creator, title } = getPostInfo();
+            const platform = getPlatform();
+            const year = getPostYear();
+
+            const sampleFile = mode === "original" ? "example.jpg" : "001.jpg";
+
+            let authorFolder = creator;
+            if (useAuthorId) authorFolder += "_" + userId;
+            if (usePlatform) authorFolder = `(${platform}) ` + authorFolder;
+
+            const postFolderName = usePostId
+                ? `${title}_${postId}`
+                : `${title}`;
+
+            let path =
+                BASE_DIR +
+                "/" + authorFolder +
+                (useYear ? "/" + year : "");
+
+            if (usePostFolder) {
+                path += "/" + postFolderName;
+            }
+
+            path += "/" + sampleFile;
+
+            document.getElementById("pathPreview").textContent =
+                "路径预览：" + path;
+        }
 
         /**
          * 自定义下载路径
@@ -357,7 +398,7 @@
             const useYear = GM_getValue("useYearFolder", false);
             const usePlatform = GM_getValue("usePlatform", false);
             const useAuthorId = GM_getValue("useAuthorId", false);
-
+            const usePostFolder = GM_getValue("usePostFolder", false);
             const mode = GM_getValue("nameMode", "original");
 
             /**
@@ -389,19 +430,29 @@
                         ? buildIndexedName(i, realName)
                         : realName;
 
-
                 const sep = BASE_DIR.match(/^[A-Za-z]:\\/) ? "\\" : "/";
 
                 let authorFolder = creator;
                 if (useAuthorId) authorFolder += "_" + userId;
                 if (usePlatform) authorFolder = `(${platform}) ` + authorFolder;
 
-                const path =
+                // 帖子文件夹名
+                const postFolderName = GM_getValue("usePostId", false)
+                    ? `${title}_${postId}`
+                    : `${title}`;
+
+                let path =
                     BASE_DIR +
                     sep + authorFolder +
-                    (useYear ? sep + year : "") +
-                    sep + `${title}_${postId}` +
-                    sep + fileName;
+                    (useYear ? sep + year : "");
+
+                // 是否按帖子建文件夹
+                if (usePostFolder) {
+                    path += sep + postFolderName;
+                }
+                // 最终文件路径
+                path += sep + fileName;
+
 
                 try {
                     await addToAria2(path, url);
@@ -437,30 +488,74 @@
         <label><input type="checkbox" id="optYear"> 按年份存放</label><br>
         <label><input type="checkbox" id="optName"> 使用原文件名</label><br>
         <label><input type="checkbox" id="optPlatform"> 包含平台(fanbox/patreon)</label><br>
-        <label><input type="checkbox" id="optAuthor"> 包含作者ID</label>
+        <label><input type="checkbox" id="optAuthor"> 包含作者ID</label><br>
+        <label><input type="checkbox" id="optPostId"> 包含帖子ID</label><br>
+        <label><input type="checkbox" id="optPost"> 按帖子建文件夹</label>
         `;
+
 
         const optYear = settingsBox.querySelector("#optYear");
         const optName = settingsBox.querySelector("#optName");
         const optPlatform = settingsBox.querySelector("#optPlatform");
         const optAuthor = settingsBox.querySelector("#optAuthor");
+        const optPostId = settingsBox.querySelector("#optPostId");
+        const optPost = settingsBox.querySelector("#optPost");
 
         optYear.checked = USE_YEAR_FOLDER;
         optName.checked = USE_ORIGINAL_NAME;
         optPlatform.checked = USE_PLATFORM;
         optAuthor.checked = USE_AUTHOR_ID;
+        optPostId.checked = USE_POST_ID;
+        optPost.checked = USE_POST_FOLDER;
 
-        optYear.onchange = () => GM_setValue("useYearFolder", optYear.checked);
-        optName.onchange = () => GM_setValue("useOriginalName", optName.checked);
-        optPlatform.onchange = () => GM_setValue("usePlatform", optPlatform.checked);
-        optAuthor.onchange = () => GM_setValue("useAuthorId", optAuthor.checked);
+        optYear.onchange = () => {
+            GM_setValue("useYearFolder", optYear.checked);
+            updatePathPreview();
+        };
+        optName.onchange = () => {
+            GM_setValue("useOriginalName", optName.checked);
+            updatePathPreview();
+        };
+        optPlatform.onchange = () => {
+            GM_setValue("usePlatform", optPlatform.checked);
+            updatePathPreview();
+        };
+        optAuthor.onchange = () => {
+            GM_setValue("useAuthorId", optAuthor.checked);
+            updatePathPreview();
+        };
+        optPost.onchange = () => {
+            GM_setValue("usePostFolder", optPost.checked);
+            updatePathPreview();
+        };
+        optPostId.onchange = () => {
+            GM_setValue("usePostId", optPostId.checked);
+            updatePathPreview();
+        };
 
         box.appendChild(btn);
         box.appendChild(cfg);
         box.appendChild(settingsBox);
+        // ===== 路径预览 =====
+        const pathPreview = document.createElement("div");
+        pathPreview.style.cssText = `
+        margin-top:6px;
+        padding:6px;
+        background:#111;
+        border:1px solid #555;
+        border-radius:4px;
+        font-size:12px;
+        color:#0f0;
+        word-break: break-all;
+        `;
+        pathPreview.id = "pathPreview";
+        pathPreview.textContent = "路径预览：";
+
+        box.appendChild(pathPreview);
         box.appendChild(favToggle);
         box.appendChild(nameModeWrap);
         document.body.appendChild(box);
+        updatePathPreview();
     }
 
     addUI();
