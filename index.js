@@ -152,6 +152,13 @@
             title: sanitize(title)
         };
     }
+    //提取 Content 文本
+    function getPostContentText() {
+        const contentEl = document.querySelector(".post__content");
+        if (!contentEl) return "";
+
+        return contentEl.innerText.trim();
+    }
 
     /**
      * 获取帖子年份函数
@@ -228,6 +235,24 @@
 
         favToggle.appendChild(favCheckbox);
         favToggle.append(" 下载完成后自动 Favorite");
+
+        /**
+         * Content 下载开关
+         * @type {HTMLLabelElement}
+         */
+        const contentToggle = document.createElement("label");
+        contentToggle.style.cssText = "display:block;margin-top:6px;cursor:pointer";
+
+        const contentCheckbox = document.createElement("input");
+        contentCheckbox.type = "checkbox";
+        contentCheckbox.checked = GM_getValue("downloadContent", false);
+
+        contentCheckbox.onchange = () => {
+            GM_setValue("downloadContent", contentCheckbox.checked);
+        };
+
+        contentToggle.appendChild(contentCheckbox);
+        contentToggle.append(" 下载 Content 为 txt");
 
         /* ---------- 命名方式选择 ---------- */
         const nameModeWrap = document.createElement("div");
@@ -420,7 +445,6 @@
             const useAuthorId = GM_getValue("useAuthorId", false);
             const usePostFolder = GM_getValue("usePostFolder", false);
             const mode = GM_getValue("nameMode", "original");
-
             /**
              * 下载按钮
              */
@@ -439,7 +463,25 @@
             }
 
             let ok = 0, fail = 0;
+           // 如果勾选了下载 Content
+            if (GM_getValue("downloadContent", false)) {
+                const text = getPostContentText();
 
+                if (text) {
+                    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+                    const textUrl = URL.createObjectURL(blob);
+
+                    const sep = BASE_DIR.match(/^[A-Za-z]:\\/) ? "\\" : "/";
+
+                    const contentPath =
+                        BASE_DIR +
+                        sep + `(${platform}) ${creator}_${userId}` +
+                        sep + `${title}_${postId}` +
+                        sep + "Content.txt";
+
+                    await addToAria2(contentPath, textUrl);
+                }
+            }
             for (let i = 0; i < urls.length; i++) {
                 const url = urls[i];
                 const mode = GM_getValue("nameMode", "original");
@@ -573,6 +615,7 @@
 
         box.appendChild(pathPreview);
         box.appendChild(favToggle);
+        box.appendChild(contentToggle);
         box.appendChild(nameModeWrap);
         document.body.appendChild(box);
         updatePathPreview();
